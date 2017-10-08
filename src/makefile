@@ -11,36 +11,23 @@ CUDA_SOURCES = neural-network.cu
 OBJECTS = $(SOURCES:.c=.o) $(CUDA_SOURCES:.cu=.o)
 EXECUTABLE = test
 
+NVCC = /usr/local/cuda-8.0/bin/nvcc
 
-all: $(SOURCES) $(EXECUTABLE)
 
-$(EXECUTABLE) : $(OBJECTS)
-	$(COMPILER) $(OBJECTS) $(OPENCL) $(CUDA_FLAGS) $(LDFLAGS) -o $@
+all: main
 
-# build all the object files
-examples.o : examples.cpp
-	/usr/local/cuda-8.0/bin/nvcc $(CUDA_FLAGS) -m64 -arch=sm_35 -o examples.o --shared -Xcompiler -fPIC -c examples.cpp
-	#$(COMPILER) $(CFLAGS) examples.cpp
 
-#aes.o: aes.c
-#	$(g++) $(CFLAGS) aes.c
+main: neural-network.o 
+	/usr/local/cuda-8.0/bin/nvcc --cudart static --relocatable-device-code=false -gencode arch=compute_50,code=compute_50 -gencode arch=compute_50,code=sm_50 -link -o  main  neural-network.o   
 
-#aes.o: aes.c
-#	/usr/local/cuda-8.0/bin/nvcc $(CUDA_FLAGS) -m64 -arch=sm_35 -o aes.o --shared -Xcompiler -fPIC -c aes.c
+#neural-network.d : neural-network.cu
+#	/usr/local/cuda-8.0/bin/nvcc -G -g -O0 -gencode arch=compute_50,code=sm_50  -M -o neural-network.d neural-network.cu
 
-#expand_key.o: expand_key.c
-#	$(g++) $(CFLAGS) expand_key.c
+neural-network.o : neural-network.cu
+	/usr/local/cuda-8.0/bin/nvcc -G -g -O0 --compile --relocatable-device-code=false -gencode arch=compute_50,code=compute_50 -gencode arch=compute_50,code=sm_50  -x cu -o  neural-network.o neural-network.cu
 
-#cpu_cipher.o: cpu_cipher.c
-#	$(g++) $(CFLAGS) cpu_cipher.c
 
-#opencl_cipher.o: opencl_cipher.c
-#	$(g++) $(CFLAGS) $(OPENCL) opencl_cipher.c
 
-neural-network.o: neural-network.cu
-	/usr/local/cuda-8.0/bin/nvcc $(CUDA_FLAGS) -m64 -arch=sm_35 -o neural-network.o --shared -Xcompiler -fPIC -c neural-network.cu
-#/usr/local/cuda-8.0/bin/nvcc $(CUDA_FLAGS) -m64 -arch=sm_20 -arch=sm_35 -o cuda_cipher.o --shared -Xcompiler -fPIC -c cuda_cipher.cu
-
-# do cleanup - remove object files and executable
 clean:
-	rm -rf $(OBJECTS) $(EXECUTABLE)
+	rm -rf *.o main
+
