@@ -1,8 +1,10 @@
 #include "tests.h"
+#include "stemmer.cpp"
 
 std::vector<char*> spam_msgs; 
 std::vector<char*> ham_msgs;
-std::map<std::string, char*> dict;
+std::map<std::string, unsigned int> dict;
+int dict_size = 0;
 
 int max_str_len = 0; 
 
@@ -91,8 +93,34 @@ int is_special(char c){
 	}
 	return 0;
 }
+int add_word_to_dict(char* word){
+	std::string str (word);
+	std::map<std::string, unsigned int>::iterator it = dict.find(str);
+	int ptr;
+	if(it != dict.end())
+	{
+	   //element found;
+	   ptr = it->second;
+	   return ptr;
+	}
+
+	// need to add word to dict
+	dict.insert(std::pair<std::string, int>(str, dict_size));
+	return dict_size++;
+}
+int is_stop_word(char* word){
+	for (int i = 0; i < sizeof(stop_words)/sizeof(char*); i++){
+		if (strcmp(word, stop_words[i]) == 0){
+			//printf("%s is s-w\n", word);
+			return 1;
+		}
+	}
+	return 0;
+}
 
 double** preprocess_texts(std::vector<char*> msgs){
+    struct stemmer * z = create_stemmer();
+
 	// eliminar simbolos especiales y dejar en minusculas
 	printf("borrando simblos especiales y dejando en minusculas\n");
 	for(std::vector<char*>::iterator it = msgs.begin(); it != msgs.end(); it++){
@@ -106,20 +134,56 @@ double** preprocess_texts(std::vector<char*> msgs){
 				aux_index++;
 			}
 		}
-
-
 		aux_string[aux_index] = '\0';
 		memcpy(real_string, aux_string, sizeof(char)*strlen(aux_string));
 	}
 	printf("	done\n");
-	// tengo arreglo de string {"hola que tal","vente pa aki", ...}
-	// tengo que tener arreglo de arreglo de strings { {hola, que, tal}, {vente, pa, aki}, etc}
-	
-	// remove stopwords
-	const char* stop_words[] = {"a", "about", "above", "above", "across", "after", "afterwards", "again", "against", "all", "almost", "alone", "along", "already", "also","although","always","am","among", "amongst", "amoungst", "amount",  "an", "and", "another", "any","anyhow","anyone","anything","anyway", "anywhere", "are", "around", "as",  "at", "back","be","became", "because","become","becomes", "becoming", "been", "before", "beforehand", "behind", "being", "below", "beside", "besides", "between", "beyond", "bill", "both", "bottom","but", "by", "call", "can", "cannot", "cant", "co", "con", "could", "couldnt", "cry", "de", "describe", "detail", "do", "done", "down", "due", "during", "each", "eg", "eight", "either", "eleven","else", "elsewhere", "empty", "enough", "etc", "even", "ever", "every", "everyone", "everything", "everywhere", "except", "few", "fifteen", "fify", "fill", "find", "fire", "first", "five", "for", "former", "formerly", "forty", "found", "four", "from", "front", "full", "further", "get", "give", "go", "had", "has", "hasnt", "have", "he", "hence", "her", "here", "hereafter", "hereby", "herein", "hereupon", "hers", "herself", "him", "himself", "his", "how", "however", "hundred", "ie", "if", "in", "inc", "indeed", "interest", "into", "is", "it", "its", "itself", "keep", "last", "latter", "latterly", "least", "less", "ltd", "made", "many", "may", "me", "meanwhile", "might", "mill", "mine", "more", "moreover", "most", "mostly", "move", "much", "must", "my", "myself", "name", "namely", "neither", "never", "nevertheless", "next", "nine", "no", "nobody", "none", "noone", "nor", "not", "nothing", "now", "nowhere", "of", "off", "often", "on", "once", "one", "only", "onto", "or", "other", "others", "otherwise", "our", "ours", "ourselves", "out", "over", "own","part", "per", "perhaps", "please", "put", "rather", "re", "same", "see", "seem", "seemed", "seeming", "seems", "serious", "several", "she", "should", "show", "side", "since", "sincere", "six", "sixty", "so", "some", "somehow", "someone", "something", "sometime", "sometimes", "somewhere", "still", "such", "system", "take", "ten", "than", "that", "the", "their", "them", "themselves", "then", "thence", "there", "thereafter", "thereby", "therefore", "therein", "thereupon", "these", "they", "thickv", "thin", "third", "this", "those", "though", "three", "through", "throughout", "thru", "thus", "to", "together", "too", "top", "toward", "towards", "twelve", "twenty", "two", "un", "under", "until", "up", "upon", "us", "very", "via", "was", "we", "well", "were", "what", "whatever", "when", "whence", "whenever", "where", "whereafter", "whereas", "whereby", "wherein", "whereupon", "wherever", "whether", "which", "while", "whither", "who", "whoever", "whole", "whom", "whose", "why", "will", "with", "within", "without", "would", "yet", "you", "your", "yours", "yourself", "yourselves", "the"};
-	
-	// hacer stemming
+	// tengo arreglo de string {"hola que tal","vente tal que", ...}
+	// tengo que tener arreglo de arreglo de strings { {1, 2, 3}, {4, 3, 2}, etc}
+	printf("eliminando stop words, haciendo stemming, llenando diccionario y transformando frases.\n");
+	std::vector<std::vector<int> > tokenized_msgs;
+	for(std::vector<char*>::iterator it = msgs.begin(); it != msgs.end(); it++){
+		char* real_string = *it; // mensaje completo (frase = strings separados por espacio)
+		std::vector<int> phrase;
+
+		char *p = strtok(real_string, " ");
+		while(p != NULL) {
+			// tokenizer, p es cada palabra de la frase
+
+			if (!is_stop_word(p)){
+				// si no es stopword, se agrega a diccionario y se toma en cuenta
+				int res = stem(z, p, strlen(p));
+
+				phrase.push_back(add_word_to_dict(p));
+			}
+		    p = strtok(NULL, " ");
+		}
+		tokenized_msgs.push_back(phrase);
+	}
+	// tengo que tener arreglo de arreglo de strings { {1, 2, 3}, {4, 3, 2}, etc}
+	printf("	done\n");
+	printf("size of dict is %d\n", dict_size);
+
+
 	// calcular td-idf
-	// retornar datos procesados
-	return NULL;
+	double** bag_of_words = (double**) malloc(sizeof(double) * tokenized_msgs.size());
+	for (int i = 0; i < tokenized_msgs.size(); i++){
+		bag_of_words[i] = (double*) malloc(sizeof(double) * dict_size);
+
+	}
+	//double bag_of_words[tokenized_msgs.size()][dict_size];
+	int phrase_index = 0;
+	for(std::vector<std::vector<int> >::iterator it = tokenized_msgs.begin(); it != tokenized_msgs.end(); it++){	// retornar datos procesados+
+		std::vector<int> phrase = *it;
+
+		for(std::vector<int>::iterator it2 = phrase.begin(); it2 != phrase.end(); it2++){
+			int current_word = *it2;
+			bag_of_words[phrase_index][current_word] += 1;
+		}
+		phrase_index++;
+	}
+
+	free_stemmer(z);
+	return bag_of_words;
 }
+
