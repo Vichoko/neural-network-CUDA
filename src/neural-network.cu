@@ -1,4 +1,14 @@
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <cuda_runtime.h>
+#include <math.h>
+#include <signal.h>
+#include <vector>
+
 #include "neural-network.h"
+#include "neural-network.cuh"
+#include "resources/parser.h"
 
 // GLOBALS
 // device memory pointers
@@ -16,17 +26,14 @@ double* last_outputs;
 double** weights;
 //int* neuron_counts_array;
 
-#define THREADS_PER_BLOCK 4 // tiene que ser potencia de 2 y mayor o igual que la cantidad maxima de neuronas que puede haber por capa
-#define LEN(x)  (sizeof(x) / sizeof((x)[0]))
-
+#define THREADS_PER_BLOCK 16 // tiene que ser potencia de 2 y mayor o igual que la cantidad maxima de neuronas que puede haber por capa
 #define INPUT_SIZE 2
 #define NEURONS_QUANTITY 2
 #define LAYERS_QUANTITY 2
+#define LEARNING_RATE 0.1
 
-// GLOBAL VARS
-int layers_count = LAYERS_QUANTITY;
-#define LEARNING_RATE 0.03
-
+// metricas
+int gpu_mode;
 float seconds_feeding;
 float seconds_updating_weights;
 float seconds_back_propagating;
@@ -34,17 +41,83 @@ unsigned int neurons_feeded;
 unsigned int neurons_back_propagated;
 unsigned int neurons_updated_weights;
 
-int main() {
-    signal(SIGINT, intHandler);
+// int main() {
 
-	networkANDSingleOutputLearningTest(false);
-	intHandler(0);
+// }
+
+int main()
+{
+	signal(SIGINT, intHandler);
+ 	networkANDSingleOutputLearningTest(true);
+ 	intHandler(0);
+
+
+/* Clasificador de texto: Lanza segmentation fault
+	init_network_struct(INPUT_SIZE, true);
+	raw_data_container_t* reti = parse("spam.csv", true);
+	data_container_t* ret = preprocess_texts(reti);
+	double** ham_bag_of_words = ret->ham_bag;
+	double** spam_bag_of_words = ret->spam_bag;
+	int ham_data_len = ret->ham_data_len;
+	int spam_data_len = ret->spam_data_len;
+	int data_len = ham_data_len + spam_data_len;
+
+
+	double** input = (double**) malloc(sizeof(double*) * data_len);
+	double** output = (double**) malloc(sizeof(double*) * data_len);
+
+	// porque la red neuronal iiene cantidad fija de neuronas, el output tiene la misma cantdidad que capa de entrada; i.e. dict_size
+	double* spam_output = (double*) malloc(sizeof(double) * ret->dict_size);
+	double* ham_output = (double*) malloc(sizeof(double) * ret->dict_size);
+	for (int i = 0; i < ret->dict_size; i++){
+		spam_output[i] = 1;
+		ham_output[i] = 0;
+	}
+
+	int data_counter = 0;
+	int ham_counter = 0;
+	int spam_counter = 0;
+	while(data_counter <= data_len){
+		if (ham_counter <= ham_data_len){
+			input[data_counter] = ham_bag_of_words[ham_counter];
+			output[data_counter] = ham_output;
+			data_counter++;
+			ham_counter++;
+		}
+		if (spam_counter <= spam_data_len){
+			input[data_counter] = spam_bag_of_words[spam_counter];
+			output[data_counter] = spam_output;
+			data_counter++;
+			spam_counter++;
+		}
+	}
+
+	// Tirar todo
+	float a = train(input, output, data_len, 100000, false, true);
+	printf("finish all\n");
+	free(ret);
+	free(spam_output);
+	free(ham_output);
+	free(output);
+	for (int i = 0; i < data_len; i++){
+		free(input[i]);
+	}
+	free(input);
+	*/
+	return 0;
 }
 
+
 float train(double** input, double** expected_output, int data_count, int n_epochs, bool run_in_parallel, bool verbose) {
-
+	gpu_mode = run_in_parallel;
+	if (run_in_parallel){
+		printf("Training in GPU\n");
+		} else {
+			printf("Training in CPU\n");
+		}
+	printf("Finish with CTRL+C to see stats.\n");	
+		
 	int output_size = NEURONS_QUANTITY; //todo: variable
-
 	// recibe dataset de entrenamiento; varios input con sus respectivos output
 	if (sizeof(input) != sizeof(expected_output)) {
 		printf("train :: dataset input and expectedOutput arrays have different lenghts: %lu and %lu.\n",
@@ -79,10 +152,17 @@ float train(double** input, double** expected_output, int data_count, int n_epoc
 			// ERROR RECORDING
 			// todo: mover cudamemcpy de outputs aqui, para no afectar mediciones
 			if (run_in_parallel){
-					cudaMemcpy(last_outputs, d_last_outputs,
-					sizeof(double) * NEURONS_QUANTITY * LAYERS_QUANTITY,
-					cudaMemcpyDeviceToHost);
-					cudaDeviceSynchronize();
+				cudaError_t err = cudaSuccess;
+				cudaMemcpy(last_outputs, d_last_outputs,
+				sizeof(double) * NEURONS_QUANTITY * LAYERS_QUANTITY,
+				cudaMemcpyDeviceToHost);
+				cudaDeviceSynchronize();
+				err = cudaGetLastError();
+				if (err != cudaSuccess) {
+					printf("error bringing last_outputs: %s\n", cudaGetErrorString(err));
+				}
+
+
 			}
 			double* actual_output = &last_outputs[layer_neuron_map(LAYERS_QUANTITY - 1, 0)];
 			if (sizeof(actual_output) != sizeof(expected_output[data_index])) {
@@ -135,7 +215,7 @@ float train(double** input, double** expected_output, int data_count, int n_epoc
 /*****************************/
 
 __host__ int networkLogicGateSingleOutputTest(double** input, double** expected_output, int data_count, bool verbose) {
-	init_network_struct(INPUT_SIZE, true);
+	init_network_struct(INPUT_SIZE, false);
 
 	/** Red con 2 neuronas de entrada, 2 escondidas y una de salida, generada con pesos aleatorios, para aprender XOR.
 	 * Clases binarias:
@@ -145,8 +225,13 @@ __host__ int networkLogicGateSingleOutputTest(double** input, double** expected_
 	if (verbose) {
 		printf("initializing training.\n");
 	}
-	bool run_in_parallel = true;
+	bool run_in_parallel = false;
 	train(input, expected_output, data_count, 1000000, run_in_parallel, verbose);
+	print_stats();
+	
+	run_in_parallel = true;
+	train(input, expected_output, data_count, 1000000, run_in_parallel, verbose);
+
 	if (verbose) {
 		printf("	done training.\n");
 	}
@@ -688,12 +773,24 @@ __device__ double atomicDoubleAdd(double* address, double val){
 }
 
 void intHandler(int dummy) {
+
+	print_stats();
+	printf("HASTA PRONTO!\n");
+	exit(1);
+}
+
+void print_stats(){
 	float neurons_feeded_per_sec = neurons_feeded/seconds_feeding;
 	float neurons_backp_per_sec = neurons_back_propagated/seconds_back_propagating;
 	float neurons_updated_per_sec = neurons_updated_weights/seconds_updating_weights;
 	float neurons_evaluated_per_sec = (neurons_feeded_per_sec + neurons_backp_per_sec + neurons_updated_per_sec)/3;
+	if (gpu_mode){
+			printf("\n///////////////// ESTADISTICAS DE ENTRENAMIENTO CON GPU /////////////////////\n");
 
-	printf("\n///////////////// ESTADISTICAS /////////////////////\n");
+		} else {
+						printf("\n///////////////// ESTADISTICAS DE ENTRENAMIENTO CON CPU /////////////////////\n");
+
+			}
 	printf("- Neuronas evaluadas: %d neuronas\n", neurons_feeded + neurons_back_propagated + neurons_updated_weights);
 	printf("- Segundos evaluando neuronas: %f segundos\n", seconds_feeding + seconds_back_propagating + seconds_updating_weights);
 	printf("- Neuronas totales evaluadas por segundo: %.f celulas/segundo\n", neurons_evaluated_per_sec);
@@ -702,9 +799,13 @@ void intHandler(int dummy) {
 	printf("- Neuronas actualizadas por segundo: %.f celulas/segundo\n", neurons_updated_per_sec);
 
 	printf("- Cantidad de nueronas: %d neruonas (%d  capas x %d n/c)\n", NEURONS_QUANTITY*LAYERS_QUANTITY, LAYERS_QUANTITY, NEURONS_QUANTITY);
-	printf("HASTA PRONTO!\n");
-	exit(1);
-}
+	 seconds_feeding = 0;
+	 seconds_updating_weights = 0;
+	 seconds_back_propagating = 0;
+	  neurons_feeded = 0;
+	  neurons_back_propagated = 0;
+	  neurons_updated_weights = 0;	
+	}
 
 /**************************************************************/
 /** MEMORY MANAGEMENT **/ /** MEMORY MANAGEMENT **/
@@ -758,7 +859,7 @@ __host__ int init_network_struct(int input_size, bool verbose) {
 
 		// iterar por inputs que puede recibir, para todas neuronas misma cantidad
 		weights[layer_neuron_map(0, neuron_index)] = (double*) malloc(
-				sizeof(double) * input_size);
+				sizeof(double) * INPUT_SIZE);
 
 		for (int input_index = 0; input_index < input_size; input_index++) {
 			weights[layer_neuron_map(0, neuron_index)][input_index] = (rand()% 100 + 1) * 1.0 / 100;
@@ -873,7 +974,7 @@ __host__ int alloc_weights_in_gpu(){
 
 __host__ int copy_weights_to_gpu(bool is_update){
 	int twod_array_size = LAYERS_QUANTITY*NEURONS_QUANTITY;
-	if (is_update && false){
+	if (is_update){
 		free_weights_in_gpu();
 		alloc_weights_in_gpu();
 	}
@@ -889,6 +990,7 @@ __host__ int copy_weights_to_gpu(bool is_update){
 				weights[layer_neuron_map(layer_index, neuron_index)],
 				sizeof(double) * INPUT_SIZE,
 				cudaMemcpyHostToDevice);
+		err = cudaGetLastError();
 		if (err != cudaSuccess) {
 			printf("error cudaMemcpytemp_d_ptrs: %s\n", cudaGetErrorString(err));
 		}
@@ -903,6 +1005,7 @@ __host__ int copy_weights_to_gpu(bool is_update){
 					weights[layer_neuron_map(layer_index, neuron_index)],
 					sizeof(double) * NEURONS_QUANTITY,
 					cudaMemcpyHostToDevice);
+			err = cudaGetLastError();
 			if (err != cudaSuccess) {
 				printf("error cudaMemcpytemp_d_ptrs: %s\n", cudaGetErrorString(err));
 			}
