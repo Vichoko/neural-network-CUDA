@@ -2,7 +2,7 @@
 A simple neural network written in CUDA and C.
 
 ## Generalidades
-Implementado y probado en **Ubuntu 16.06** con **CUDA 1.8**.
+Implementado y probado en **Ubuntu 16.06** con **CUDA 8.0**.
 
 
 ## Dependencias
