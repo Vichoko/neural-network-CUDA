@@ -1,3 +1,9 @@
+/**
+ * Autor: Vicente Oyanedel M.
+ * Fecha: Otubre, 2017.
+ * 
+ * */
+ 
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>

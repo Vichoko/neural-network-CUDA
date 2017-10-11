@@ -1,3 +1,8 @@
+/**
+ * Autor: Vicente Oyanedel M.
+ * Fecha: Otubre, 2017.
+ * 
+ * */
 #include "parser.h"
 #include "stemmer.cpp"
 
