@@ -1,7 +1,9 @@
 # Redes neuronales en GPU con CUDA
 Autor: Vicente Oyanedel M.
 
-Profesor: Alexandre Bergel
+Profesor: Alexandre Bergel.
+
+Curso: Redes Neuronales y Programación Genética; Departamento de Ciencias de la Computación; Universidad de Chile.
 
 Fecha: Octubre, 2017.
 
