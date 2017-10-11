@@ -1,6 +1,6 @@
 # neural-network-CUDA
 Una red neuronal implementada en CUDA y C; con el objetivo de comparar el "speed up" que se puede alcanzar utilizando la GPU para entrenar en paralelo.
-Para información detallada, le invito a leer el (REPORTE)[https://github.com/Vichoko/neural-network-CUDA/blob/master/reporte.md] de este proyecto.
+Para información detallada, le invito a leer el [**Reporte**](https://github.com/Vichoko/neural-network-CUDA/blob/master/reporte.md) de este proyecto.
 
 ## Generalidades
 Fue implementado y probado en **Ubuntu 16.06** con **CUDA 8.0**; ejecutado en una GPU NVidia Geforce GTX 960m.
