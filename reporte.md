@@ -4,10 +4,13 @@ Autor: Vicente Oyanedel M.
 Profesor: Alexandre Bergel
 
 Fecha: Octubre, 2017.
+
 ## Objetivo
+
 Se implementa una red neuronal para procesarse de manera paralela en GPU, con el objetivo de comparar el aceleramiento ("speed up") que se puede alcanzar en el entrenamiento de estas; comparado con la versión secuencial en CPU.
 
 La idea general, es que en el proceso de entrenamiento ocurren distintas fases que se pueden paralelizar de manera particular:
+
 * Forward Feed: Se debe esperar a que la capa previa termine de alimentarse, antes de alimentar la siguiente. Se paraleliza sobre cada neurona de la capa; iterando por capas, dada la restricción.
 * Back Propagation: Se debe esperar a que la capa sucesiva actualice su delta, antes de propagar el error. Se paraleliza sobre cada neurona de la capa; iterando por capas, dada la restricción.
 * Actualizar pesos: Se paraleliza sobre todas las neuronas de la red; dado que solo depende de su información interna.
@@ -57,6 +60,7 @@ Esta experiencia se analiza en más profundidad en la sección de *conclusiones*
 Por otro lado, se pudo probar el correcto funcionamiento de la implementación paralela y secuencial aprendiendo compuertas lógicas. 
 
 ## Código fuente y data set
+
 El data set utilizado corresponden a 5,574 mensajes de texto (SMS) etiquetados como SPAM o HAM, el cual se puede encontrar en Kaggle: https://www.kaggle.com/uciml/sms-spam-collection-dataset
 
 El data set de compuertas logicas fue generado en el archivo ```cuda.cu```.
@@ -70,9 +74,11 @@ Para ejecutar el código se requiere una GPU NVidia con el SDK de CUDA y el data
 
 Se experimentó entrenando la red neuronal para aprender las compueras logicas OR y AND. Para ello se diseñó una red neuronal de 2 capas y 2 neuronas por capa. 
 Se obtuvieron las siguientes metricas:
+
 * CPU: 11,656,736 neuronas evaluadas por segundo, en promedio.
 * GPU: 106,478 neuronas evaluadas por segundo, en promedio.
-Se evidenció que la implementación en CPU completa el entrenamiento x109.5 veces más rápido que en GPU.
+
+Se evidencia que la implementación en CPU completa el entrenamiento x109.5 veces más rápido que en GPU.
 
 Esto ocurre dado que el sobre costo de mover datos de GPU a host, y viceversa; es mucho mayor que el costo de iterar por las pocas neuronas en la versión secuencial.
 
@@ -81,6 +87,7 @@ Como se mencionó, no se pudo obtener resultados con respecto al entrenamiento c
 ![Imagen de entrenamiento con 2 neuronas y 2 capas; estadisticas de uso en CPU y entrenamiento en GPU funcionando](https://i.imgur.com/q2wCtFh.png)
 
 ## Análisis y Conclusión
+
 El problema de convertir la red neuronal secuencial a la versión paralela en GPU requiere de un previo diseño detallado y completo de la implementación en GPU; antes de comenzar a implementar. Esto dado que el objetivo de particionar el problema en sub-problemas paralelizables, sujetos a las restricciones (no menores) que impone ejecutar aplicaciones en GPUs NVidia con CUDA; es un proceso complejo.
 
 La implementación paralela en GPU fue diseñada con ayuda de material del curso de Programación en GPU, y material de apoyo encontrado en internet con respecto a la paralelización de redes neuronales mediante matrices.
